@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -22,13 +22,17 @@ import {
   Stack,
   Collapse,
   Typography,
+  InputAdornment,
+  TableSortLabel,
 } from '@mui/material';
 import { 
   IconEdit, 
   IconPlus, 
   IconChevronDown, 
   IconChevronRight,
-  IconBuildingStore 
+  IconBuildingStore,
+  IconSearch,
+  IconX,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from 'src/context/AuthContext';
@@ -67,6 +71,9 @@ interface Branch {
   isActive: boolean;
 }
 
+type OrderDirection = 'asc' | 'desc';
+type SortableField = keyof Pick<Tenant, 'tenantName' | 'tenantCode' | 'dbName' | 'phoneNumber' | 'email'>;
+
 const Tenants: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -77,6 +84,11 @@ const Tenants: React.FC = () => {
   const [loadingBranches, setLoadingBranches] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
+  
+  // Search & Sort States
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [orderBy, setOrderBy] = useState<SortableField>('tenantName');
+  const [order, setOrder] = useState<OrderDirection>('asc');
   
   // Tenant Dialog States
   const [openTenantDialog, setOpenTenantDialog] = useState(false);
@@ -151,6 +163,46 @@ const Tenants: React.FC = () => {
     fetchTenants();
     fetchBranches();
   }, [token]);
+
+  // Handle Sort
+  const handleSort = (field: SortableField) => {
+    const isAsc = orderBy === field && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(field);
+  };
+
+  // Filter and Sort Tenants
+  const filteredAndSortedTenants = useMemo(() => {
+    let filtered = [...tenants];
+
+    // Apply Search Filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(tenant =>
+        tenant.tenantName?.toLowerCase().includes(query) ||
+        tenant.tenantCode?.toLowerCase().includes(query) ||
+        tenant.dbName?.toLowerCase().includes(query) ||
+        tenant.phoneNumber?.toLowerCase().includes(query) ||
+        tenant.email?.toLowerCase().includes(query) ||
+        tenant.address?.toLowerCase().includes(query) ||
+        tenant.governorate?.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply Sorting
+    filtered.sort((a, b) => {
+      const aValue = a[orderBy] || '';
+      const bValue = b[orderBy] || '';
+      
+      if (order === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      }
+    });
+
+    return filtered;
+  }, [tenants, searchQuery, orderBy, order]);
 
   const handleTenantChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -246,7 +298,6 @@ const Tenants: React.FC = () => {
       await fetchBranches();
       setOpenBranchDialog(false);
       
-      // Expand the row to show the new branch
       setExpandedRows(prev => new Set(prev).add(selectedTenantForBranch));
     } catch (err: any) {
       console.error('Error saving branch:', err);
@@ -291,16 +342,45 @@ const Tenants: React.FC = () => {
           </Button>
         }
       >
+        {/* Search Box */}
+        <Box mb={3}>
+          <TextField
+            fullWidth
+            placeholder={t('Search by name, code, database, phone, email...')}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <IconSearch size={20} />
+                </InputAdornment>
+              ),
+              endAdornment: searchQuery && (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setSearchQuery('')}>
+                    <IconX size={18} />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+          {searchQuery && (
+            <Typography variant="body2" color="textSecondary" mt={1}>
+              {t('Found')} {filteredAndSortedTenants.length} {t('results')}
+            </Typography>
+          )}
+        </Box>
+
         {loading ? (
           <Box display="flex" justifyContent="center" p={3}>
             <CircularProgress />
           </Box>
         ) : error ? (
           <Alert severity="error">{error}</Alert>
-        ) : tenants.length === 0 ? (
+        ) : filteredAndSortedTenants.length === 0 ? (
           <Box textAlign="center" p={3}>
             <Typography variant="h6" color="textSecondary">
-              {t('No tenants found')}
+              {searchQuery ? t('No tenants found matching your search') : t('No tenants found')}
             </Typography>
           </Box>
         ) : (
@@ -309,17 +389,57 @@ const Tenants: React.FC = () => {
               <TableHead>
                 <TableRow>
                   <TableCell width={50}></TableCell>
-                  <TableCell><strong>{t('Name')}</strong></TableCell>
-                  <TableCell><strong>{t('Code')}</strong></TableCell>
-                  <TableCell><strong>{t('Database')}</strong></TableCell>
-                  <TableCell><strong>{t('Phone Number')}</strong></TableCell>
-                  <TableCell><strong>{t('Email')}</strong></TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={orderBy === 'tenantName'}
+                      direction={orderBy === 'tenantName' ? order : 'asc'}
+                      onClick={() => handleSort('tenantName')}
+                    >
+                      <strong>{t('Name')}</strong>
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={orderBy === 'tenantCode'}
+                      direction={orderBy === 'tenantCode' ? order : 'asc'}
+                      onClick={() => handleSort('tenantCode')}
+                    >
+                      <strong>{t('Code')}</strong>
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={orderBy === 'dbName'}
+                      direction={orderBy === 'dbName' ? order : 'asc'}
+                      onClick={() => handleSort('dbName')}
+                    >
+                      <strong>{t('Database')}</strong>
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={orderBy === 'phoneNumber'}
+                      direction={orderBy === 'phoneNumber' ? order : 'asc'}
+                      onClick={() => handleSort('phoneNumber')}
+                    >
+                      <strong>{t('Phone Number')}</strong>
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={orderBy === 'email'}
+                      direction={orderBy === 'email' ? order : 'asc'}
+                      onClick={() => handleSort('email')}
+                    >
+                      <strong>{t('Email')}</strong>
+                    </TableSortLabel>
+                  </TableCell>
                   <TableCell><strong>{t('Status')}</strong></TableCell>
                   <TableCell align="center"><strong>{t('Actions')}</strong></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {tenants.map((tenant) => {
+                {filteredAndSortedTenants.map((tenant) => {
                   const tenantBranches = getTenantBranches(tenant.id);
                   const isExpanded = expandedRows.has(tenant.id);
                   
@@ -431,7 +551,7 @@ const Tenants: React.FC = () => {
         )}
       </DashboardCard>
 
-      {/* Tenant Dialog */}
+      {/* Tenant Dialog - Same as before */}
       <Dialog open={openTenantDialog} onClose={() => setOpenTenantDialog(false)} fullWidth maxWidth="md">
         <DialogTitle>
           {editTenantMode ? t('Edit Tenant') : t('Add Tenant')}
@@ -551,7 +671,7 @@ const Tenants: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Branch Dialog */}
+      {/* Branch Dialog - Same as before */}
       <Dialog open={openBranchDialog} onClose={() => setOpenBranchDialog(false)} fullWidth maxWidth="sm">
         <DialogTitle>
           {t('Add Branch')}
