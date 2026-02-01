@@ -33,10 +33,19 @@ import {
   IconBuildingStore,
   IconSearch,
   IconX,
+  IconTrash,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from 'src/context/AuthContext';
-import { getTenants, addTenant, updateTenant, getBranches, addBranch } from 'src/utils/api';
+import { 
+  getTenants, 
+  addTenant, 
+  updateTenant, 
+  deleteTenant,
+  getBranches, 
+  addBranch, 
+  updateBranch 
+} from 'src/utils/api';
 import PageContainer from 'src/components/container/PageContainer';
 import Breadcrumb from 'src/layouts/full/shared/breadcrumb/Breadcrumb';
 import DashboardCard from 'src/components/shared/DashboardCard';
@@ -96,7 +105,13 @@ const Tenants: React.FC = () => {
   
   // Branch Dialog States
   const [openBranchDialog, setOpenBranchDialog] = useState(false);
+  const [editBranchMode, setEditBranchMode] = useState(false);
   const [selectedTenantForBranch, setSelectedTenantForBranch] = useState<string>('');
+  const [, setSelectedBranch] = useState<Branch | null>(null);
+  
+  // Delete Confirmation Dialog
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [tenantToDelete, setTenantToDelete] = useState<Tenant | null>(null);
   
   // Expanded Rows
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -123,6 +138,8 @@ const Tenants: React.FC = () => {
     Address: '',
     Governate: '',
     Phone: '',
+    TenantId: '',
+    BranchId: '',
   });
 
   useEffect(() => {
@@ -253,16 +270,60 @@ const Tenants: React.FC = () => {
   };
 
   const handleOpenAddBranch = (tenantId: string) => {
+    setEditBranchMode(false);
+    setSelectedBranch(null);
     setSelectedTenantForBranch(tenantId);
     setBranchFormData({
-      Id: `${tenantId}_branch_${Date.now()}`,
+      Id: tenantId,
       Name: '',
       ExpireDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       Address: '',
       Governate: '',
       Phone: '',
+      TenantId: tenantId,
+      BranchId: '',
     });
     setOpenBranchDialog(true);
+  };
+
+  const handleOpenEditBranch = (branch: Branch, tenantId: string) => {
+    setEditBranchMode(true);
+    setSelectedBranch(branch);
+    setSelectedTenantForBranch(tenantId);
+    setBranchFormData({
+      Id: branch.id,
+      Name: branch.name,
+      ExpireDate: branch.expireDate ? branch.expireDate.split('T')[0] : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      Address: branch.address || '',
+      Governate: branch.governate || '',
+      Phone: branch.phone || '',
+      TenantId: branch.tenantId || tenantId,
+      BranchId: branch.branchId || '',
+    });
+    setOpenBranchDialog(true);
+  };
+
+  const handleOpenDeleteDialog = (tenant: Tenant) => {
+    setTenantToDelete(tenant);
+    setOpenDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!token || !tenantToDelete) return;
+    setError('');
+    setSuccess('');
+    
+    try {
+      await deleteTenant(tenantToDelete.id, token);
+      setSuccess(t('Tenant deleted successfully'));
+      await fetchTenants();
+      setOpenDeleteDialog(false);
+      setTenantToDelete(null);
+    } catch (err: any) {
+      console.error('Error deleting tenant:', err);
+      setError(err.message || 'Failed to delete tenant');
+      setOpenDeleteDialog(false);
+    }
   };
 
   const handleSubmitTenant = async () => {
@@ -293,12 +354,21 @@ const Tenants: React.FC = () => {
     setSuccess('');
     
     try {
-      await addBranch(branchFormData, token);
-      setSuccess(t('Branch added successfully'));
+      if (editBranchMode) {
+        await updateBranch(branchFormData, token);
+        setSuccess(t('Branch updated successfully'));
+      } else {
+        await addBranch(branchFormData, token);
+        setSuccess(t('Branch added successfully'));
+      }
+      
       await fetchBranches();
       setOpenBranchDialog(false);
+      setEditBranchMode(false);
       
-      setExpandedRows(prev => new Set(prev).add(selectedTenantForBranch));
+      if (!editBranchMode) {
+        setExpandedRows(prev => new Set(prev).add(selectedTenantForBranch));
+      }
     } catch (err: any) {
       console.error('Error saving branch:', err);
       setError(err.message || 'Failed to save branch');
@@ -475,6 +545,7 @@ const Tenants: React.FC = () => {
                               color="primary" 
                               size="small"
                               onClick={() => handleOpenEditTenant(tenant)}
+                              title={t('Edit Tenant')}
                             >
                               <IconEdit size={18} />
                             </IconButton>
@@ -482,8 +553,17 @@ const Tenants: React.FC = () => {
                               color="secondary" 
                               size="small"
                               onClick={() => handleOpenAddBranch(tenant.id)}
+                              title={t('Add Branch')}
                             >
                               <IconBuildingStore size={18} />
+                            </IconButton>
+                            <IconButton 
+                              color="error" 
+                              size="small"
+                              onClick={() => handleOpenDeleteDialog(tenant)}
+                              title={t('Delete Tenant')}
+                            >
+                              <IconTrash size={18} />
                             </IconButton>
                           </Stack>
                         </TableCell>
@@ -514,6 +594,7 @@ const Tenants: React.FC = () => {
                                       <TableCell><strong>{t('Phone')}</strong></TableCell>
                                       <TableCell><strong>{t('Expire Date')}</strong></TableCell>
                                       <TableCell><strong>{t('Status')}</strong></TableCell>
+                                      <TableCell align="center"><strong>{t('Actions')}</strong></TableCell>
                                     </TableRow>
                                   </TableHead>
                                   <TableBody>
@@ -533,6 +614,16 @@ const Tenants: React.FC = () => {
                                             size="small"
                                           />
                                         </TableCell>
+                                        <TableCell align="center">
+                                          <IconButton 
+                                            color="primary" 
+                                            size="small"
+                                            onClick={() => handleOpenEditBranch(branch, tenant.id)}
+                                            title={t('Edit Branch')}
+                                          >
+                                            <IconEdit size={16} />
+                                          </IconButton>
+                                        </TableCell>
                                       </TableRow>
                                     ))}
                                   </TableBody>
@@ -551,7 +642,7 @@ const Tenants: React.FC = () => {
         )}
       </DashboardCard>
 
-      {/* Tenant Dialog - Same as before */}
+      {/* Tenant Dialog */}
       <Dialog open={openTenantDialog} onClose={() => setOpenTenantDialog(false)} fullWidth maxWidth="md">
         <DialogTitle>
           {editTenantMode ? t('Edit Tenant') : t('Add Tenant')}
@@ -671,10 +762,10 @@ const Tenants: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Branch Dialog - Same as before */}
+      {/* Branch Dialog */}
       <Dialog open={openBranchDialog} onClose={() => setOpenBranchDialog(false)} fullWidth maxWidth="sm">
         <DialogTitle>
-          {t('Add Branch')}
+          {editBranchMode ? t('Edit Branch') : t('Add Branch')}
         </DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 2 }}>
@@ -686,6 +777,7 @@ const Tenants: React.FC = () => {
                 required
                 value={branchFormData.Id}
                 onChange={handleBranchChange}
+                disabled={editBranchMode}
               />
               <TextField
                 label={t('Branch Name')}
@@ -735,7 +827,26 @@ const Tenants: React.FC = () => {
             variant="contained"
             disabled={!branchFormData.Id || !branchFormData.Name}
           >
-            {t('Add')}
+            {editBranchMode ? t('Update') : t('Add')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)} maxWidth="xs">
+        <DialogTitle>{t('Confirm Delete')}</DialogTitle>
+        <DialogContent>
+          <Typography>
+            {t('Are you sure you want to delete tenant')} "{tenantToDelete?.tenantName}"?
+          </Typography>
+          <Typography variant="body2" color="error" mt={2}>
+            {t('This action cannot be undone.')}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDeleteDialog(false)}>{t('Cancel')}</Button>
+          <Button onClick={handleConfirmDelete} variant="contained" color="error">
+            {t('Delete')}
           </Button>
         </DialogActions>
       </Dialog>

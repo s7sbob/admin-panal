@@ -6,8 +6,6 @@ const BASE_URL: string = import.meta.env.VITE_API_BASE_URL || '';
 export async function login(phone: string, password: string) {
   const url = `${BASE_URL}/Login?PhoneNo=${encodeURIComponent(phone)}&Password=${encodeURIComponent(password)}`;
   
-  console.log('🔵 Login Request:', { url, phone });
-  
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -18,27 +16,20 @@ export async function login(phone: string, password: string) {
       headers,
     });
     
-    console.log('🔵 Response Status:', response.status, response.ok);
-    
     const textResponse = await response.text();
-    console.log('🔵 Response Text:', textResponse);
     
     if (!textResponse || textResponse === 'false' || textResponse.trim() === 'false') {
-      console.log('❌ Login returned false');
       return false;
     }
     
     try {
       const data = JSON.parse(textResponse);
-      console.log('✅ Parsed JSON:', data);
       return data;
     } catch (parseError) {
-      console.error('❌ JSON Parse Error:', parseError);
       throw new Error('Invalid response format from server');
     }
     
   } catch (error: any) {
-    console.error('❌ Network Error:', error);
     throw new Error(error.message || 'Network error');
   }
 }
@@ -52,6 +43,10 @@ function buildAuthHeaders(token: string): Record<string, string> {
     Authorization: `Bearer ${token}`,
   };
 }
+
+// =====================================================
+// TENANTS APIs
+// =====================================================
 
 /**
  * Fetch tenants list.
@@ -67,7 +62,6 @@ export async function getTenants(token: string) {
   }
   const result = await response.json();
   
-  // Handle the API response structure
   if (result.isvalid && result.data) {
     return result.data;
   }
@@ -120,6 +114,52 @@ export async function updateTenant(data: Record<string, any>, token: string) {
 }
 
 /**
+ * Delete a tenant.
+ */
+export async function deleteTenant(tenantId: string, token: string) {
+  const response = await fetch(`${BASE_URL}/deleteTenant?TenantID=${encodeURIComponent(tenantId)}`, {
+    method: 'DELETE',
+    headers: buildAuthHeaders(token),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Failed to delete tenant');
+  }
+  const result = await response.json();
+  
+  if (result.isvalid) {
+    return result;
+  }
+  
+  throw new Error(result.errors?.join(', ') || 'Failed to delete tenant');
+}
+
+/**
+ * Get deleted tenants list.
+ */
+export async function getDeletedTenants(token: string) {
+  const response = await fetch(`${BASE_URL}/getDeletedTenants`, {
+    method: 'GET',
+    headers: buildAuthHeaders(token),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Failed to fetch deleted tenants');
+  }
+  const result = await response.json();
+  
+  if (result.isvalid && result.data) {
+    return result.data;
+  }
+  
+  throw new Error(result.errors?.join(', ') || 'Failed to fetch deleted tenants');
+}
+
+// =====================================================
+// BRANCHES APIs
+// =====================================================
+
+/**
  * Fetch branches list.
  */
 export async function getBranches(token: string) {
@@ -138,6 +178,27 @@ export async function getBranches(token: string) {
   }
   
   throw new Error(result.errors?.join(', ') || 'Failed to fetch branches');
+}
+
+/**
+ * Get a specific branch by ID.
+ */
+export async function getBranch(branchId: string, token: string) {
+  const response = await fetch(`${BASE_URL}/getBranch?BranchId=${encodeURIComponent(branchId)}`, {
+    method: 'GET',
+    headers: buildAuthHeaders(token),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Failed to fetch branch');
+  }
+  const result = await response.json();
+  
+  if (result.isvalid && result.data) {
+    return result.data;
+  }
+  
+  throw new Error(result.errors?.join(', ') || 'Failed to fetch branch');
 }
 
 /**
@@ -162,6 +223,31 @@ export async function addBranch(data: Record<string, any>, token: string) {
   throw new Error(result.errors?.join(', ') || 'Failed to add branch');
 }
 
+/**
+ * Update a branch.
+ */
+export async function updateBranch(data: Record<string, any>, token: string) {
+  const response = await fetch(`${BASE_URL}/updateBranch`, {
+    method: 'POST',
+    headers: buildAuthHeaders(token),
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Failed to update branch');
+  }
+  const result = await response.json();
+  
+  if (result.isvalid) {
+    return result;
+  }
+  
+  throw new Error(result.errors?.join(', ') || 'Failed to update branch');
+}
+
+// =====================================================
+// AGENTS APIs
+// =====================================================
 
 /**
  * Fetch agents list.
