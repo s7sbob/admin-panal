@@ -13,7 +13,6 @@ import {
 import { 
   IconBuildingStore, 
   IconUserCircle,
-  IconSettings,
   IconChartBar,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
