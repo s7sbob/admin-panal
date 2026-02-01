@@ -46,8 +46,8 @@ const handleLogin = async (phone: string, password: string) => {
         console.log('✅ Expiration saved:', result.expiration);
       }
       
-      console.log('➡️ Navigating to /tenants');
-      navigate('/tenants', { replace: true });
+      console.log('➡️ Navigating to Home');
+      navigate('/', { replace: true });
     } else {
       console.error('❌ Invalid response structure:', result);
       setMsg(t('Login Failed - Invalid Response'));

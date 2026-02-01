@@ -3,6 +3,7 @@
 import React, { lazy } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router';
 import Loadable from '../layouts/full/shared/loadable/Loadable';
+import Home from 'src/views/home/Home';
 
 /* ***Layouts**** */
 const FullLayout = Loadable(lazy(() => import('../layouts/full/FullLayout')));
@@ -21,7 +22,7 @@ const Router = [
     path: '/',
     element: <FullLayout />,
     children: [
-      { path: '/', element: <Navigate to="/tenants" /> },
+      { path: '/', element: <Home /> },
       { path: '/tenants', exact: true, element: <Tenants /> },
       { path: '/agents', exact: true, element: <Agents /> },
       { path: '/sample-page', exact: true, element: <SamplePage /> },
