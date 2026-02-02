@@ -24,7 +24,12 @@ import {
   Typography,
   InputAdornment,
   TableSortLabel,
+  Card,
+  CardContent,
+  Divider,
+  useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { 
   IconEdit, 
   IconPlus, 
@@ -87,6 +92,9 @@ const Tenants: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { token } = useContext(AuthContext);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -181,18 +189,15 @@ const Tenants: React.FC = () => {
     fetchBranches();
   }, [token]);
 
-  // Handle Sort
   const handleSort = (field: SortableField) => {
     const isAsc = orderBy === field && order === 'asc';
     setOrder(isAsc ? 'desc' : 'asc');
     setOrderBy(field);
   };
 
-  // Filter and Sort Tenants
   const filteredAndSortedTenants = useMemo(() => {
     let filtered = [...tenants];
 
-    // Apply Search Filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(tenant =>
@@ -206,7 +211,6 @@ const Tenants: React.FC = () => {
       );
     }
 
-    // Apply Sorting
     filtered.sort((a, b) => {
       const aValue = a[orderBy] || '';
       const bValue = b[orderBy] || '';
@@ -407,8 +411,9 @@ const Tenants: React.FC = () => {
             variant="contained" 
             startIcon={<IconPlus />}
             onClick={handleOpenAddTenant}
+            size={isMobile ? 'small' : 'medium'}
           >
-            {t('Add Tenant')}
+            {isMobile ? t('Add') : t('Add Tenant')}
           </Button>
         }
       >
@@ -419,6 +424,7 @@ const Tenants: React.FC = () => {
             placeholder={t('Search by name, code, database, phone, email...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            size={isMobile ? 'small' : 'medium'}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -453,7 +459,173 @@ const Tenants: React.FC = () => {
               {searchQuery ? t('No tenants found matching your search') : t('No tenants found')}
             </Typography>
           </Box>
+        ) : isMobile ? (
+          // ==================== MOBILE CARD VIEW ====================
+          <Stack spacing={2}>
+            {filteredAndSortedTenants.map((tenant) => {
+              const tenantBranches = getTenantBranches(tenant.id);
+              const isExpanded = expandedRows.has(tenant.id);
+              
+              return (
+                <Card key={tenant.id} variant="outlined">
+                  <CardContent>
+                    <Stack spacing={2}>
+                      {/* Header with Actions */}
+                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                        <Box flex={1}>
+                          <Typography variant="h6" fontWeight="bold">
+                            {tenant.tenantName}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            {t('Code')}: {tenant.tenantCode}
+                          </Typography>
+                        </Box>
+                        <Stack direction="row" spacing={0.5}>
+                          <IconButton 
+                            color="primary" 
+                            size="small"
+                            onClick={() => handleOpenEditTenant(tenant)}
+                          >
+                            <IconEdit size={18} />
+                          </IconButton>
+                          <IconButton 
+                            color="secondary" 
+                            size="small"
+                            onClick={() => handleOpenAddBranch(tenant.id)}
+                          >
+                            <IconBuildingStore size={18} />
+                          </IconButton>
+                          <IconButton 
+                            color="error" 
+                            size="small"
+                            onClick={() => handleOpenDeleteDialog(tenant)}
+                          >
+                            <IconTrash size={18} />
+                          </IconButton>
+                        </Stack>
+                      </Stack>
+
+                      <Divider />
+
+                      {/* Details */}
+                      <Box>
+                        <Stack spacing={1}>
+                          <Stack direction="row" spacing={1}>
+                            <Typography variant="body2" color="textSecondary" sx={{ minWidth: 80 }}>
+                              {t('Database')}:
+                            </Typography>
+                            <Typography variant="body2" fontWeight="500">
+                              {tenant.dbName}
+                            </Typography>
+                          </Stack>
+                          
+                          {tenant.phoneNumber && (
+                            <Stack direction="row" spacing={1}>
+                              <Typography variant="body2" color="textSecondary" sx={{ minWidth: 80 }}>
+                                {t('Phone')}:
+                              </Typography>
+                              <Typography variant="body2" fontWeight="500">
+                                {tenant.phoneNumber}
+                              </Typography>
+                            </Stack>
+                          )}
+                          
+                          {tenant.email && (
+                            <Stack direction="row" spacing={1}>
+                              <Typography variant="body2" color="textSecondary" sx={{ minWidth: 80 }}>
+                                {t('Email')}:
+                              </Typography>
+                              <Typography variant="body2" fontWeight="500" sx={{ wordBreak: 'break-all' }}>
+                                {tenant.email}
+                              </Typography>
+                            </Stack>
+                          )}
+
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography variant="body2" color="textSecondary" sx={{ minWidth: 80 }}>
+                              {t('Status')}:
+                            </Typography>
+                            <Chip 
+                              label={tenant.isActive ? t('Active') : t('Inactive')} 
+                              color={tenant.isActive ? 'success' : 'default'}
+                              size="small"
+                            />
+                          </Stack>
+                        </Stack>
+                      </Box>
+
+                      {/* Branches Toggle */}
+                      {tenantBranches.length > 0 && (
+                        <>
+                          <Divider />
+                          <Button
+                            size="small"
+                            onClick={() => toggleRow(tenant.id)}
+                            endIcon={isExpanded ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
+                            sx={{ justifyContent: 'flex-start' }}
+                          >
+                            {t('Branches')} ({tenantBranches.length})
+                          </Button>
+
+                          <Collapse in={isExpanded}>
+                            <Stack spacing={1.5} sx={{ pl: 1, pt: 1 }}>
+                              {tenantBranches.map((branch) => (
+                                <Card key={branch.branchId || branch.id} variant="outlined" sx={{ bgcolor: 'grey.50' }}>
+                                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                    <Stack spacing={1}>
+                                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                        <Typography variant="subtitle2" fontWeight="bold">
+                                          {branch.name}
+                                        </Typography>
+                                        <IconButton 
+                                          color="primary" 
+                                          size="small"
+                                          onClick={() => handleOpenEditBranch(branch, tenant.id)}
+                                        >
+                                          <IconEdit size={14} />
+                                        </IconButton>
+                                      </Stack>
+                                      
+                                      {branch.address && (
+                                        <Typography variant="caption" color="textSecondary">
+                                          📍 {branch.address}
+                                        </Typography>
+                                      )}
+                                      
+                                      {branch.phone && (
+                                        <Typography variant="caption">
+                                          📞 {branch.phone}
+                                        </Typography>
+                                      )}
+
+                                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                                        <Chip 
+                                          label={branch.isActive ? t('Active') : t('Inactive')} 
+                                          color={branch.isActive ? 'success' : 'default'}
+                                          size="small"
+                                        />
+                                        {branch.expireDate && (
+                                          <Typography variant="caption" color="textSecondary">
+                                            ⏰ {new Date(branch.expireDate).toLocaleDateString()}
+                                          </Typography>
+                                        )}
+                                      </Stack>
+                                    </Stack>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </Stack>
+                          </Collapse>
+                        </>
+                      )}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </Stack>
         ) : (
+          // ==================== DESKTOP TABLE VIEW ====================
           <TableContainer component={Paper} variant="outlined">
             <Table>
               <TableHead>
@@ -569,7 +741,6 @@ const Tenants: React.FC = () => {
                         </TableCell>
                       </TableRow>
                       
-                      {/* Branches Row */}
                       <TableRow>
                         <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={8}>
                           <Collapse in={isExpanded} timeout="auto" unmountOnExit>
@@ -833,7 +1004,7 @@ const Tenants: React.FC = () => {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)} maxWidth="xs">
+      <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)} maxWidth="xs" fullWidth>
         <DialogTitle>{t('Confirm Delete')}</DialogTitle>
         <DialogContent>
           <Typography>

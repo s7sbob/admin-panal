@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -21,8 +21,22 @@ import {
   Chip,
   Stack,
   Typography,
+  InputAdornment,
+  TableSortLabel,
+  Card,
+  CardContent,
+  Divider,
+  useMediaQuery,
 } from '@mui/material';
-import { IconEdit, IconPlus } from '@tabler/icons-react';
+import { useTheme } from '@mui/material/styles';
+import { 
+  IconEdit, 
+  IconPlus,
+  IconSearch,
+  IconX,
+  IconPhone,
+  IconMail,
+} from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from 'src/context/AuthContext';
 import { getAgents, addAgent, updateAgent } from 'src/utils/api';
@@ -39,33 +53,41 @@ interface Agent {
   phoneNumber: string | null;
   whatsAppNumber: string | null;
   email: string | null;
-  notes: string | null;
-  creationDate: string;
   isActive: boolean;
-  tenantId: string | null;
-  branchId: string | null;
 }
+
+type OrderDirection = 'asc' | 'desc';
+type SortableField = keyof Pick<Agent, 'agentName' | 'governorate' | 'phoneNumber' | 'email'>;
 
 const Agents: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { token } = useContext(AuthContext);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
+  
+  // Search & Sort States
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [orderBy, setOrderBy] = useState<SortableField>('agentName');
+  const [order, setOrder] = useState<OrderDirection>('asc');
+  
+  // Dialog States
   const [openDialog, setOpenDialog] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  
   const [formData, setFormData] = useState<Record<string, string>>({
     Id: '',
     AgentName: '',
-    CreationDate: new Date().toISOString().split('T')[0],
     Address: '',
+    Governorate: '',
     PhoneNumber: '',
     WhatsAppNumber: '',
     Email: '',
-    Governorate: '',
-    Notes: '',
   });
 
   useEffect(() => {
@@ -93,6 +115,40 @@ const Agents: React.FC = () => {
     fetchAgents();
   }, [token]);
 
+  const handleSort = (field: SortableField) => {
+    const isAsc = orderBy === field && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(field);
+  };
+
+  const filteredAndSortedAgents = useMemo(() => {
+    let filtered = [...agents];
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(agent =>
+        agent.agentName?.toLowerCase().includes(query) ||
+        agent.governorate?.toLowerCase().includes(query) ||
+        agent.phoneNumber?.toLowerCase().includes(query) ||
+        agent.email?.toLowerCase().includes(query) ||
+        agent.address?.toLowerCase().includes(query)
+      );
+    }
+
+    filtered.sort((a, b) => {
+      const aValue = a[orderBy] || '';
+      const bValue = b[orderBy] || '';
+      
+      if (order === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      }
+    });
+
+    return filtered;
+  }, [agents, searchQuery, orderBy, order]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -103,13 +159,11 @@ const Agents: React.FC = () => {
     setFormData({
       Id: '',
       AgentName: '',
-      CreationDate: new Date().toISOString().split('T')[0],
       Address: '',
+      Governorate: '',
       PhoneNumber: '',
       WhatsAppNumber: '',
       Email: '',
-      Governorate: '',
-      Notes: '',
     });
     setOpenDialog(true);
   };
@@ -119,13 +173,11 @@ const Agents: React.FC = () => {
     setFormData({
       Id: agent.id,
       AgentName: agent.agentName,
-      CreationDate: agent.creationDate ? agent.creationDate.split('T')[0] : new Date().toISOString().split('T')[0],
       Address: agent.address || '',
+      Governorate: agent.governorate || '',
       PhoneNumber: agent.phoneNumber || '',
       WhatsAppNumber: agent.whatsAppNumber || '',
       Email: agent.email || '',
-      Governorate: agent.governorate || '',
-      Notes: agent.notes || '',
     });
     setOpenDialog(true);
   };
@@ -162,51 +214,195 @@ const Agents: React.FC = () => {
       <Breadcrumb title={t('Agents')} items={breadcrumbItems} />
       
       <DashboardCard
-        title={t('Agents')}
+        title={t('Agents Management')}
         action={
           <Button 
             variant="contained" 
             startIcon={<IconPlus />}
             onClick={handleOpenAdd}
+            size={isMobile ? 'small' : 'medium'}
           >
-            {t('Add Agent')}
+            {isMobile ? t('Add') : t('Add Agent')}
           </Button>
         }
       >
+        {/* Search Box */}
+        <Box mb={3}>
+          <TextField
+            fullWidth
+            placeholder={t('Search by name, governorate, phone, email...')}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            size={isMobile ? 'small' : 'medium'}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <IconSearch size={20} />
+                </InputAdornment>
+              ),
+              endAdornment: searchQuery && (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setSearchQuery('')}>
+                    <IconX size={18} />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+          {searchQuery && (
+            <Typography variant="body2" color="textSecondary" mt={1}>
+              {t('Found')} {filteredAndSortedAgents.length} {t('results')}
+            </Typography>
+          )}
+        </Box>
+
         {loading ? (
           <Box display="flex" justifyContent="center" p={3}>
             <CircularProgress />
           </Box>
         ) : error ? (
           <Alert severity="error">{error}</Alert>
-        ) : agents.length === 0 ? (
+        ) : filteredAndSortedAgents.length === 0 ? (
           <Box textAlign="center" p={3}>
             <Typography variant="h6" color="textSecondary">
-              {t('No agents found')}
+              {searchQuery ? t('No agents found matching your search') : t('No agents found')}
             </Typography>
           </Box>
+        ) : isMobile ? (
+          // ==================== MOBILE CARD VIEW ====================
+          <Stack spacing={2}>
+            {filteredAndSortedAgents.map((agent) => (
+              <Card key={agent.id} variant="outlined">
+                <CardContent>
+                  <Stack spacing={2}>
+                    {/* Header with Actions */}
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                      <Box flex={1}>
+                        <Typography variant="h6" fontWeight="bold">
+                          {agent.agentName}
+                        </Typography>
+                        {agent.governorate && (
+                          <Typography variant="body2" color="textSecondary">
+                            📍 {agent.governorate}
+                          </Typography>
+                        )}
+                      </Box>
+                      <IconButton 
+                        color="primary" 
+                        size="small"
+                        onClick={() => handleOpenEdit(agent)}
+                      >
+                        <IconEdit size={18} />
+                      </IconButton>
+                    </Stack>
+
+                    <Divider />
+
+                    {/* Details */}
+                    <Stack spacing={1.5}>
+                      {agent.phoneNumber && (
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <IconPhone size={16} color="gray" />
+                          <Typography variant="body2">
+                            {agent.phoneNumber}
+                          </Typography>
+                        </Stack>
+                      )}
+
+                      {agent.whatsAppNumber && (
+                        <Stack direction="row" spacing={1}>
+                          <Typography variant="body2" color="textSecondary" sx={{ minWidth: 80 }}>
+                            WhatsApp:
+                          </Typography>
+                          <Typography variant="body2">
+                            {agent.whatsAppNumber}
+                          </Typography>
+                        </Stack>
+                      )}
+
+                      {agent.email && (
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <IconMail size={16} color="gray" />
+                          <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                            {agent.email}
+                          </Typography>
+                        </Stack>
+                      )}
+
+                      {agent.address && (
+                        <Typography variant="body2" color="textSecondary">
+                          {agent.address}
+                        </Typography>
+                      )}
+
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Chip 
+                          label={agent.isActive ? t('Active') : t('Inactive')} 
+                          color={agent.isActive ? 'success' : 'default'}
+                          size="small"
+                        />
+                      </Stack>
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+            ))}
+          </Stack>
         ) : (
+          // ==================== DESKTOP TABLE VIEW ====================
           <TableContainer component={Paper} variant="outlined">
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell><strong>{t('Name')}</strong></TableCell>
-                  <TableCell><strong>{t('Phone Number')}</strong></TableCell>
-                  <TableCell><strong>{t('WhatsApp Number')}</strong></TableCell>
-                  <TableCell><strong>{t('Email')}</strong></TableCell>
-                  <TableCell><strong>{t('Governorate')}</strong></TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={orderBy === 'agentName'}
+                      direction={orderBy === 'agentName' ? order : 'asc'}
+                      onClick={() => handleSort('agentName')}
+                    >
+                      <strong>{t('Name')}</strong>
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={orderBy === 'governorate'}
+                      direction={orderBy === 'governorate' ? order : 'asc'}
+                      onClick={() => handleSort('governorate')}
+                    >
+                      <strong>{t('Governorate')}</strong>
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={orderBy === 'phoneNumber'}
+                      direction={orderBy === 'phoneNumber' ? order : 'asc'}
+                      onClick={() => handleSort('phoneNumber')}
+                    >
+                      <strong>{t('Phone Number')}</strong>
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell><strong>{t('WhatsApp')}</strong></TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={orderBy === 'email'}
+                      direction={orderBy === 'email' ? order : 'asc'}
+                      onClick={() => handleSort('email')}
+                    >
+                      <strong>{t('Email')}</strong>
+                    </TableSortLabel>
+                  </TableCell>
                   <TableCell><strong>{t('Status')}</strong></TableCell>
                   <TableCell align="center"><strong>{t('Actions')}</strong></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {agents.map((agent) => (
+                {filteredAndSortedAgents.map((agent) => (
                   <TableRow key={agent.id} hover>
                     <TableCell>{agent.agentName}</TableCell>
+                    <TableCell>{agent.governorate || '-'}</TableCell>
                     <TableCell>{agent.phoneNumber || '-'}</TableCell>
                     <TableCell>{agent.whatsAppNumber || '-'}</TableCell>
                     <TableCell>{agent.email || '-'}</TableCell>
-                    <TableCell>{agent.governorate || '-'}</TableCell>
                     <TableCell>
                       <Chip 
                         label={agent.isActive ? t('Active') : t('Inactive')} 
@@ -219,6 +415,7 @@ const Agents: React.FC = () => {
                         color="primary" 
                         size="small"
                         onClick={() => handleOpenEdit(agent)}
+                        title={t('Edit Agent')}
                       >
                         <IconEdit size={18} />
                       </IconButton>
@@ -231,33 +428,30 @@ const Agents: React.FC = () => {
         )}
       </DashboardCard>
 
-      {/* Agent Dialog */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="md">
+      {/* Add/Edit Agent Dialog */}
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="sm">
         <DialogTitle>
           {editMode ? t('Edit Agent') : t('Add Agent')}
         </DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 2 }}>
             <Stack spacing={2}>
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                <TextField
-                  label={t('Agent Name')}
-                  name="AgentName"
-                  fullWidth
-                  required
-                  value={formData.AgentName}
-                  onChange={handleChange}
-                />
-                <TextField
-                  label={t('Creation Date')}
-                  name="CreationDate"
-                  type="date"
-                  fullWidth
-                  value={formData.CreationDate}
-                  onChange={handleChange}
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Stack>
+              <TextField
+                label={t('Agent Name')}
+                name="AgentName"
+                fullWidth
+                required
+                value={formData.AgentName}
+                onChange={handleChange}
+              />
+              
+              <TextField
+                label={t('Governorate')}
+                name="Governorate"
+                fullWidth
+                value={formData.Governorate}
+                onChange={handleChange}
+              />
 
               <TextField
                 label={t('Address')}
@@ -267,48 +461,28 @@ const Agents: React.FC = () => {
                 onChange={handleChange}
               />
 
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                <TextField
-                  label={t('Governorate')}
-                  name="Governorate"
-                  fullWidth
-                  value={formData.Governorate}
-                  onChange={handleChange}
-                />
-                <TextField
-                  label={t('Email')}
-                  name="Email"
-                  type="email"
-                  fullWidth
-                  value={formData.Email}
-                  onChange={handleChange}
-                />
-              </Stack>
-
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                <TextField
-                  label={t('Phone Number')}
-                  name="PhoneNumber"
-                  fullWidth
-                  value={formData.PhoneNumber}
-                  onChange={handleChange}
-                />
-                <TextField
-                  label={t('WhatsApp Number')}
-                  name="WhatsAppNumber"
-                  fullWidth
-                  value={formData.WhatsAppNumber}
-                  onChange={handleChange}
-                />
-              </Stack>
+              <TextField
+                label={t('Phone Number')}
+                name="PhoneNumber"
+                fullWidth
+                value={formData.PhoneNumber}
+                onChange={handleChange}
+              />
 
               <TextField
-                label={t('Notes')}
-                name="Notes"
+                label={t('WhatsApp Number')}
+                name="WhatsAppNumber"
                 fullWidth
-                multiline
-                rows={3}
-                value={formData.Notes}
+                value={formData.WhatsAppNumber}
+                onChange={handleChange}
+              />
+
+              <TextField
+                label={t('Email')}
+                name="Email"
+                type="email"
+                fullWidth
+                value={formData.Email}
                 onChange={handleChange}
               />
             </Stack>

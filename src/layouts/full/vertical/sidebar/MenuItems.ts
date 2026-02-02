@@ -17,12 +17,26 @@ interface MenuitemsType {
 import {
   IconUsers,
   IconUserPlus,
+  IconHome,
+  IconUserBolt,
 } from '@tabler/icons-react';
 
 const Menuitems: MenuitemsType[] = [
   {
     navlabel: true,
     subheader: 'Home',
+  },
+  {
+    id: uniqueId(),
+    title: 'Home',
+    icon: IconHome,
+    href: '/',
+  },
+  {
+    id: uniqueId(),
+    title: 'Users',
+    icon: IconUserBolt,
+    href: '/users',
   },
   {
     id: uniqueId(),

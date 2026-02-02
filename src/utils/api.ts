@@ -334,3 +334,50 @@ export async function getAgent(agentId: string, token: string) {
   
   throw new Error(result.errors?.join(', ') || 'Failed to fetch agent');
 }
+
+// =====================================================
+// USERS APIs
+// =====================================================
+
+/**
+ * Get all users by agent ID
+ */
+export async function getAllUsersByAgentId(token: string) {
+  const response = await fetch(`${BASE_URL}/getAllUsersByAgentId`, {
+    method: 'GET',
+    headers: buildAuthHeaders(token),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Failed to fetch users');
+  }
+  const result = await response.json();
+  
+  if (result.isvalid && result.data) {
+    return result.data;
+  }
+  
+  throw new Error(result.errors?.join(', ') || 'Failed to fetch users');
+}
+
+/**
+ * Register a new user
+ */
+export async function registerUser(data: Record<string, any>, token: string) {
+  const response = await fetch(`${BASE_URL}/register`, {
+    method: 'POST',
+    headers: buildAuthHeaders(token),
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Failed to register user');
+  }
+  const result = await response.json();
+  
+  if (result.isvalid) {
+    return result;
+  }
+  
+  throw new Error(result.errors?.join(', ') || 'Failed to register user');
+}
